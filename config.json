@@ -30,6 +30,54 @@
       "type": "text",
       "action": "add",
       "args": {
+        "name": "cncu",
+        "uri": "https://ispip.clang.cn/unicom_cnc_cidr.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cncu",
+        "uri": "https://ispip.clang.cn/unicom_cnc_ipv6.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cncm",
+        "uri": "https://ispip.clang.cn/cmcc_cidr.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cncm",
+        "uri": "https://ispip.clang.cn/cmcc_ipv6.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cnct",
+        "uri": "https://ispip.clang.cn/chinatelecom_cidr.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
+        "name": "cnct",
+        "uri": "https://ispip.clang.cn/chinatelecom_ipv6.txt"
+      }
+    },
+    {
+      "type": "text",
+      "action": "add",
+      "args": {
         "name": "telegram",
         "uri": "https://core.telegram.org/resources/cidr.txt"
       }
