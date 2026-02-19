@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/Loyalsoldier/geoip/lib"
-	"github.com/oschwald/geoip2-golang"
-	"github.com/oschwald/maxminddb-golang"
+	"github.com/oschwald/geoip2-golang/v2"
+	"github.com/oschwald/maxminddb-golang/v2"
 )
 
 var (
@@ -19,6 +19,86 @@ var (
 	defaultDBIPOutputDir    = filepath.Join("./", "output", "db-ip")
 	defaultIPInfoOutputDir  = filepath.Join("./", "output", "ipinfo")
 )
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+var (
+	zeroDBIPLanguageNames      dbipLanguageNames
+	zeroDBIPContinent          dbipContinent
+	zeroDBIPCountryRecord      dbipCountryRecord
+	zeroDBIPRepresentedCountry dbipRepresentedCountry
+	zeroDBIPCountry            dbipCountry
+)
+
+// Reference: https://ipinfo.io/lite
+type ipInfoLite struct {
+	ASN           string `maxminddb:"asn"`
+	ASName        string `maxminddb:"as_name"`
+	ASDomain      string `maxminddb:"as_domain"`
+	Continent     string `maxminddb:"continent"`
+	ContinentCode string `maxminddb:"continent_code"`
+	Country       string `maxminddb:"country"`
+	CountryCode   string `maxminddb:"country_code"`
+}
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+type dbipLanguageNames struct {
+	geoip2.Names
+
+	// Persian localized name
+	Persian string `json:"fa,omitzero" maxminddb:"fa"`
+	// Korean localized name
+	Korean string `json:"ko,omitzero" maxminddb:"ko"`
+}
+
+func (d dbipLanguageNames) HasData() bool {
+	return d != zeroDBIPLanguageNames
+}
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+type dbipContinent struct {
+	geoip2.Continent
+
+	Names dbipLanguageNames `json:"names,omitzero" maxminddb:"names"`
+}
+
+func (d dbipContinent) HasData() bool {
+	return d != zeroDBIPContinent
+}
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+type dbipCountryRecord struct {
+	geoip2.CountryRecord
+
+	Names dbipLanguageNames `json:"names,omitzero" maxminddb:"names"`
+}
+
+func (d dbipCountryRecord) HasData() bool {
+	return d != zeroDBIPCountryRecord
+}
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+type dbipRepresentedCountry struct {
+	geoip2.RepresentedCountry
+
+	Names dbipLanguageNames `json:"names,omitzero" maxminddb:"names"`
+}
+
+func (d dbipRepresentedCountry) HasData() bool {
+	return d != zeroDBIPRepresentedCountry
+}
+
+// Reference: https://github.com/oschwald/geoip2-golang/blob/HEAD/models.go
+type dbipCountry struct {
+	Traits             geoip2.CountryTraits   `json:"traits,omitzero"              maxminddb:"traits"`
+	Continent          dbipContinent          `json:"continent,omitzero"           maxminddb:"continent"`
+	RepresentedCountry dbipRepresentedCountry `json:"represented_country,omitzero" maxminddb:"represented_country"`
+	Country            dbipCountryRecord      `json:"country,omitzero"             maxminddb:"country"`
+	RegisteredCountry  dbipCountryRecord      `json:"registered_country,omitzero"  maxminddb:"registered_country"`
+}
+
+func (d dbipCountry) HasData() bool {
+	return d != zeroDBIPCountry
+}
 
 func newGeoLite2CountryMMDBOut(iType string, iDesc string, action lib.Action, data json.RawMessage) (lib.OutputConverter, error) {
 	var tmp struct {
@@ -87,26 +167,25 @@ func (g *GeoLite2CountryMMDBOut) GetExtraInfo() (map[string]any, error) {
 		return nil, err
 	}
 
-	db, err := maxminddb.FromBytes(content)
+	db, err := maxminddb.OpenBytes(content)
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
 	infoList := make(map[string]any)
-	networks := db.Networks(maxminddb.SkipAliasedNetworks)
-	for networks.Next() {
+	for network := range db.Networks() {
 		switch g.Type {
-		case TypeGeoLite2CountryMMDBOut, TypeDBIPCountryMMDBOut:
+		case TypeGeoLite2CountryMMDBOut:
 			var record geoip2.Country
-			_, err := networks.Network(&record)
+			err := network.Decode(&record)
 			if err != nil {
 				return nil, err
 			}
 
 			switch {
-			case strings.TrimSpace(record.Country.IsoCode) != "":
-				countryCode := strings.ToUpper(strings.TrimSpace(record.Country.IsoCode))
+			case strings.TrimSpace(record.Country.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.Country.ISOCode))
 				if _, found := infoList[countryCode]; !found {
 					infoList[countryCode] = geoip2.Country{
 						Continent: record.Continent,
@@ -114,8 +193,8 @@ func (g *GeoLite2CountryMMDBOut) GetExtraInfo() (map[string]any, error) {
 					}
 				}
 
-			case strings.TrimSpace(record.RegisteredCountry.IsoCode) != "":
-				countryCode := strings.ToUpper(strings.TrimSpace(record.RegisteredCountry.IsoCode))
+			case strings.TrimSpace(record.RegisteredCountry.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.RegisteredCountry.ISOCode))
 				if _, found := infoList[countryCode]; !found {
 					infoList[countryCode] = geoip2.Country{
 						Continent: record.Continent,
@@ -123,19 +202,14 @@ func (g *GeoLite2CountryMMDBOut) GetExtraInfo() (map[string]any, error) {
 					}
 				}
 
-			case strings.TrimSpace(record.RepresentedCountry.IsoCode) != "":
-				countryCode := strings.ToUpper(strings.TrimSpace(record.RepresentedCountry.IsoCode))
+			case strings.TrimSpace(record.RepresentedCountry.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.RepresentedCountry.ISOCode))
 				if _, found := infoList[countryCode]; !found {
 					infoList[countryCode] = geoip2.Country{
 						Continent: record.Continent,
-						Country: struct {
-							Names             map[string]string `maxminddb:"names"`
-							IsoCode           string            `maxminddb:"iso_code"`
-							GeoNameID         uint              `maxminddb:"geoname_id"`
-							IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						}{
+						Country: geoip2.CountryRecord{
 							Names:             record.RepresentedCountry.Names,
-							IsoCode:           record.RepresentedCountry.IsoCode,
+							ISOCode:           record.RepresentedCountry.ISOCode,
 							GeoNameID:         record.RepresentedCountry.GeoNameID,
 							IsInEuropeanUnion: record.RepresentedCountry.IsInEuropeanUnion,
 						},
@@ -143,20 +217,60 @@ func (g *GeoLite2CountryMMDBOut) GetExtraInfo() (map[string]any, error) {
 				}
 			}
 
-		case TypeIPInfoCountryMMDBOut:
-			record := struct {
-				Continent     string `maxminddb:"continent"`
-				ContinentName string `maxminddb:"continent_name"`
-				Country       string `maxminddb:"country"`
-				CountryName   string `maxminddb:"country_name"`
-			}{}
-
-			_, err := networks.Network(&record)
+		case TypeDBIPCountryMMDBOut:
+			var record dbipCountry
+			err := network.Decode(&record)
 			if err != nil {
 				return nil, err
 			}
-			countryCode := strings.ToUpper(strings.TrimSpace(record.Country))
+
+			switch {
+			case strings.TrimSpace(record.Country.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.Country.ISOCode))
+				if _, found := infoList[countryCode]; !found {
+					infoList[countryCode] = dbipCountry{
+						Continent: record.Continent,
+						Country:   record.Country,
+					}
+				}
+
+			case strings.TrimSpace(record.RegisteredCountry.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.RegisteredCountry.ISOCode))
+				if _, found := infoList[countryCode]; !found {
+					infoList[countryCode] = dbipCountry{
+						Continent: record.Continent,
+						Country:   record.RegisteredCountry,
+					}
+				}
+
+			case strings.TrimSpace(record.RepresentedCountry.ISOCode) != "":
+				countryCode := strings.ToUpper(strings.TrimSpace(record.RepresentedCountry.ISOCode))
+				if _, found := infoList[countryCode]; !found {
+					infoList[countryCode] = dbipCountry{
+						Continent: record.Continent,
+						Country: dbipCountryRecord{
+							CountryRecord: geoip2.CountryRecord{
+								ISOCode:           record.RepresentedCountry.ISOCode,
+								GeoNameID:         record.RepresentedCountry.GeoNameID,
+								IsInEuropeanUnion: record.RepresentedCountry.IsInEuropeanUnion,
+							},
+							Names: record.RepresentedCountry.Names,
+						},
+					}
+				}
+			}
+
+		case TypeIPInfoCountryMMDBOut:
+			var record ipInfoLite
+			err := network.Decode(&record)
+			if err != nil {
+				return nil, err
+			}
+			countryCode := strings.ToUpper(strings.TrimSpace(record.CountryCode))
 			if _, found := infoList[countryCode]; !found {
+				record.ASN = ""
+				record.ASName = ""
+				record.ASDomain = ""
 				infoList[countryCode] = record
 			}
 
@@ -164,10 +278,6 @@ func (g *GeoLite2CountryMMDBOut) GetExtraInfo() (map[string]any, error) {
 			return nil, lib.ErrNotSupportedFormat
 		}
 
-	}
-
-	if networks.Err() != nil {
-		return nil, networks.Err()
 	}
 
 	if len(infoList) == 0 {
