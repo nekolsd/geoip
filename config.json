@@ -1,10 +1,10 @@
 {
   "input": [
     {
-      "type": "maxmindMMDB",
+      "type": "ipinfoCountryMMDB",
       "action": "add",
       "args": {
-        "uri": "./geolite2/GeoLite2-Country.mmdb",
+        "uri": "./ipinfo/ipinfo_lite.mmdb",
         "wantedList": [
           "cn"
         ]
